@@ -1,5 +1,7 @@
 <?php
 
+use Draftr\BoxOfficeRetriever\BoxOfficeMojoRetriever;
+use Draftr\Constants\Regions;
 use Illuminate\Console\Command;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Input\InputArgument;
@@ -12,13 +14,6 @@ class UpdateBoxOfficeEarnings extends Command {
 	 * @var string
 	 */
 	protected $name = 'command:UpdateBOE';
-
-	/**
-	 * The base box office mojo url
-	 *
-	 * @var string
-	 */
-	protected $baseURL = "http://boxofficemojo.com/movies/?id=";
 
 	/**
 	 * The console command description.
@@ -95,7 +90,7 @@ class UpdateBoxOfficeEarnings extends Command {
 
 		sleep(rand(1,8)); //hopefully this will help keep us on the dl
 
-		$BOE = $this->liberateBOE($mojoId);
+		$BOE = $this->liberateBOE($mojoId, Regions::DOMESTIC);
 		return $this->updateTable($movieId, $BOE);
 	}
 
@@ -111,30 +106,13 @@ class UpdateBoxOfficeEarnings extends Command {
 	}
 
 	/**
-	*  Returns the latest BOE for the movie
+	*  Returns the latest BOE for the movie in the specified region
 	*	
 	*  @return int
 	*/
-	private function liberateBOE($mojoId) {
-		$doc = new DOMDocument();
-
-		//Wrap the loading function with a silent error wrapper as the site is not properly formed
-		set_error_handler('silentError');
-		try {
-			$doc->loadHTMLFile( $this->baseURL.$mojoId.'.htm' );
-		} catch(ErrorException $e) {}
-		restore_error_handler();
-
-		/*
-		*  Yes, nothing like parsing html with regex :(  unfortunately the mark up is too f'd for the parser.
-		*/
-		$htmlString = $doc->saveHTML();
-		$matches;
-		$found = preg_match('/Domestic Total as of [\w\.]+\s*\d+,?\s*\d*:<\/font>\s*<b>\$([0-9,]*)/', $htmlString, $matches);
-		
-		$BOE = $found ? intval(str_replace(',', '', $matches[1])) : 0;
-
-		return $BOE;
+	private function liberateBOE($mojoId, $region) {
+		$retriever = BoxOfficeMojoRetriever::getInstance();
+		return $retriever->fetchBoxOfficeEarnings($mojoId, $region);
 	}
 }
 
